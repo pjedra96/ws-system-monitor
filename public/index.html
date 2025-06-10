@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket App</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1>Server WS Statistics Monitor</h1>
+    <h2 class="subtitle">Live system resource usage and disk statistics</h2>
+    <div id="buttons">
+        <input type="button" value="Start" onclick="startWebSocket();">
+        <input type="button" value="Close connection" onclick="closeWebSocket();">
+    </div>
+
+    <div class="table-responsive">
+        <table id="stats_table" border="1" cellspacing="0" cellpadding="0">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th colspan="3" style="text-align:center;">Disk Data</th>
+                    <th colspan="4"> CPU </th>
+                    <th id="additional_stats" colspan="3" style="text-align:center;">Disk Avg</th>
+                </tr>
+                <tr>
+                    <th>Time</th>
+                    <th>KB/t (Kilobytes/Transfer)</th>
+                    <th>tps (Transfers/sec)</th>
+                    <th>MB/s (Megabytes/sec)</th>
+                    <th>us (User CPU %)</th>
+                    <th>sy (System CPU %)</th>
+                    <th>Total CPU % (us+sy)</th>
+                    <th>ID (Idle CPU %)</th>
+                    <th id="avg1">1m Load Avg</th>
+                    <th id="avg5">5m Load Avg</th>
+                    <th id="avg15">15m Load Avg</th>
+                </tr>
+            </thead>
+            <tbody id="statsTableBody"></tbody>
+            </tbody>
+        </table>
+    </div>
+
+    <canvas id="lineChart" width="480" height="200"></canvas>
+
+    <div id="out"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>

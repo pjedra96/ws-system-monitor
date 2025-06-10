@@ -1,0 +1,131 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+}
+
+h1 {
+    text-align: center;
+    margin: 20px auto 30px auto; /* Increased bottom margin */
+    padding: 20px 0 16px 0;
+    width: 60%;
+    background-color: #4CAF50;
+    color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(76,175,80,0.10);
+    font-size: 2.2rem;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+    transition: box-shadow 0.2s;
+}
+
+h1:hover {
+    box-shadow: 0 8px 24px rgba(76,175,80,0.18);
+}
+
+.subtitle {
+    text-align: center;
+    color: #000000;
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin-bottom: 24px;
+    letter-spacing: 0.5px;
+}
+
+.table-responsive{
+    margin-bottom: 30px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    background-color: #fff;
+}
+
+th, td {
+    padding: 10px;
+    text-align: center;
+    border: 1px solid #ddd;
+}
+
+th {
+    background-color: #4CAF50;
+    color: white;
+}
+
+tr:hover {
+    background-color: #f1f1f1;
+}
+
+#chartContainer {
+    width: 80%;
+    margin: 0 auto;
+}
+
+canvas {
+    background-color: #fff;
+    border: 1px solid #ddd;
+}
+
+#buttons {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin: 20px 0;
+}
+
+#buttons input[type="button"] {
+    padding: 12px 32px;
+    font-size: 1rem;
+    font-weight: bold;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    background-color: #4CAF50;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+#buttons input[type="button"]:hover {
+    background-color: #388e3c;
+    color: #e0ffe0;
+}
+
+/* Different color for the "Close connection" button */
+#buttons input[type="button"]:last-child {
+    background-color: #f44336;
+    color: #fff;
+}
+
+#buttons input[type="button"]:last-child:hover {
+    background-color: #b71c1c;
+    color: #ffeaea;
+}
+
+@media (max-width: 900px) {
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    table {
+        min-width: 700px; /* or whatever minimum width fits your columns */
+    }
+}
+
+@media (max-width: 600px) {
+    h1 {
+        width: 95%;
+        font-size: 1.3rem;
+        padding: 12px 0 10px 0;
+        margin: 16px auto 18px auto;
+        border-radius: 8px;
+    }
+    .subtitle {
+        font-size: 1.2rem;
+        margin-bottom: 20px;
+    }
+}
