@@ -3,49 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebSocket App</title>
+    <title>WebSocket System Monitor</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <h1>Server WS Statistics Monitor</h1>
-    <h2 class="subtitle">Live system resource usage and disk statistics</h2>
-    <div id="buttons">
-        <input type="button" value="Start" onclick="startWebSocket();">
-        <input type="button" value="Close connection" onclick="closeWebSocket();">
-    </div>
+    <main class="container">
+        <header class="page-header">
+            <div>
+                <h1>WebSocket System Monitor</h1>
+                <p class="subtitle">System resource usage and disk statistics in real-time</p>
+                <p id="serverInfo" class="server-info"></p>
+            </div>
+            <div class="controls">
+                <span id="status" class="status">Disconnected</span>
+                <div id="buttons">
+                    <button type="button" class="btn btn-start" onclick="startWebSocket();">Start</button>
+                    <button type="button" class="btn btn-stop" onclick="closeWebSocket();">Close connection</button>
+                </div>
+            </div>
+        </header>
 
-    <div class="table-responsive">
-        <table id="stats_table" border="1" cellspacing="0" cellpadding="0">
-            <thead>
-                <tr>
-                    <th></th>
-                    <th colspan="3" style="text-align:center;">Disk Data</th>
-                    <th colspan="4"> CPU </th>
-                    <th id="additional_stats" colspan="3" style="text-align:center;">Disk Avg</th>
-                </tr>
-                <tr>
-                    <th>Time</th>
-                    <th>KB/t (Kilobytes/Transfer)</th>
-                    <th>tps (Transfers/sec)</th>
-                    <th>MB/s (Megabytes/sec)</th>
-                    <th>us (User CPU %)</th>
-                    <th>sy (System CPU %)</th>
-                    <th>Total CPU % (us+sy)</th>
-                    <th>ID (Idle CPU %)</th>
-                    <th id="avg1">1m Load Avg</th>
-                    <th id="avg5">5m Load Avg</th>
-                    <th id="avg15">15m Load Avg</th>
-                </tr>
-            </thead>
-            <tbody id="statsTableBody"></tbody>
-            </tbody>
-        </table>
-    </div>
+        <section class="card">
+            <h2 class="card-title">CPU usage</h2>
+            <div id="chartContainer">
+                <canvas id="lineChart"></canvas>
+            </div>
+        </section>
 
-    <canvas id="lineChart" width="480" height="200"></canvas>
+        <section class="card">
+            <h2 class="card-title">Recent samples</h2>
+            <div class="table-responsive">
+                <table id="stats_table">
+                    <thead>
+                        <tr class="group-row">
+                            <th></th>
+                            <th colspan="4">Disk Data</th>
+                            <th colspan="4">CPU</th>
+                            <th>Memory</th>
+                            <th colspan="2">Network</th>
+                            <th id="additional_stats" colspan="3">Load average</th>
+                        </tr>
+                        <tr>
+                            <th>Time</th>
+                            <th>KB/t <small>Kilobytes/Transfer</small></th>
+                            <th>tps <small>Transfers/sec</small></th>
+                            <th>Read <small>MB/s</small></th>
+                            <th>Write <small>MB/s</small></th>
+                            <th>us <small>User CPU %</small></th>
+                            <th>sy <small>System CPU %</small></th>
+                            <th>Total CPU % <small>us+sy</small></th>
+                            <th>ID <small>Idle CPU %</small></th>
+                            <th>Used <small>% of RAM</small></th>
+                            <th>↓ In <small>received</small></th>
+                            <th>↑ Out <small>sent</small></th>
+                            <th id="avg1">1 min</th>
+                            <th id="avg5">5 min</th>
+                            <th id="avg15">15 min</th>
+                        </tr>
+                    </thead>
+                    <tbody id="statsTableBody">
+                        <tr class="empty-row"><td colspan="15">Press <strong>Start</strong> to begin streaming data.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p id="loadLegend" class="legend"></p>
+        </section>
 
-    <div id="out"></div>
+        <div id="out"></div>
+    </main>
 
     <script src="script.js"></script>
 </body>

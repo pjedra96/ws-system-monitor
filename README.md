@@ -92,7 +92,8 @@ This is a Node.js-based application that provides **live system usage statistics
 
 ## Notes
 
-- Disk statistics collection uses platform-specific commands (`wmic` on Windows, `iostat` on Linux/macOS).
+- Disk statistics come from `systeminformation` on Linux/macOS (reads `/proc` and `lsblk`, no `iostat` needed) and from Windows performance counters via one background PowerShell process (no `wmic` needed).
+- On Linux/macOS the last three columns show the real load average, coloured against the number of CPU cores. Windows has no load average, so they show the average CPU % over 1, 5 and 15 minutes instead.
 - The application is for local or LAN use; for public deployment, consider security and firewall settings.
 
 ---

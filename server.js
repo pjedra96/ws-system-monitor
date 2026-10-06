@@ -4,9 +4,18 @@ const path = require('path');
 const fs = require('fs');
 const si = require('systeminformation');
 const os = require('os');
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
+
+const isWindows = os.platform() === 'win32';
+const MB = 1024 * 1024;
+const GB = 1024 * 1024 * 1024;
+
+// Windows has no load average, so we keep our own rolling average of total CPU % (one sample per second)
 const cpuHistory = {m1: [], m5: [], m15: []};
 const maxSamples = { m1: 60, m5: 300, m15: 900 };
+
+// Latest disk reading from the background PowerShell sampler (Windows only)
+let windowsDisk = null;
 
 const server = http.createServer((req, res) => {
     let filePath = path.join(__dirname, 'public', req.url === '/' ? 'index.html' : req.url);
@@ -41,7 +50,7 @@ const server = http.createServer((req, res) => {
                 res.end('500 Internal Server Error');
             }
         } else {
-            res.writeHead(200, { 'Content-Type': contentType });
+            res.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-cache' });
             res.end(content, 'utf-8');
         }
     });
@@ -51,123 +60,139 @@ const wss = new WebSocket.Server({ server });
 
 wss.on('connection', (ws) => {
     console.log('Client connected');
-
-    // Simulate sending data every second
-    /*setInterval(() => {
-        const data = JSON.stringify({
-            date: new Date().toLocaleTimeString(),
-            disk: { kbt: Math.random() * 100, tps: Math.random() * 50, mbs: Math.random() * 10 },
-            cpu: { us: Math.random() * 100, sy: Math.random() * 100, id: Math.random() * 100 },
-            load_average: { m1: Math.random() * 5, m5: Math.random() * 5, m15: Math.random() * 5 }
-        });
-        ws.send(data);
-    }, 1000);*/
-    // Use systeminformation to get actual data
-    setInterval(async () => {
-        try {
-            const [cpu] = await Promise.all([
-                si.currentLoad()
-            ]);
-            // Update CPU history
-            const totalCpu = cpu.currentLoadUser + cpu.currentLoadSystem;
-            ['m1', 'm5', 'm15'].forEach(key => {
-                cpuHistory[key].unshift(totalCpu);
-                if (cpuHistory[key].length > maxSamples[key]) cpuHistory[key].pop();
-            });
-            const avgCpu = key => cpuHistory[key].reduce((a, b) => a + b, 0) / (cpuHistory[key].length || 1);
-            // Get current time
-            const now = new Date();
-
-            // Prepare disk stats
-            let diskStats = {
-                kbt: "N/A",
-                tps: "N/A",
-                mbs: "N/A"
-            };
-
-            if (os.platform() === 'win32') {
-                // Windows: Use wmic
-                exec('wmic path Win32_PerfFormattedData_PerfDisk_PhysicalDisk get DiskTransfersPerSec,DiskReadBytesPerSec,DiskWriteBytesPerSec /format:csv', (err, stdout) => {
-                    if (!err && stdout) {
-                        const lines = stdout.trim().split('\n').filter(line => line.trim());
-                        // Find the first valid data line (skip header and _Total)
-                        const dataLine = lines.find(line => line && !line.includes('Node') && !line.includes('_Total'));
-                        if (dataLine) {
-                            const parts = dataLine.split(',');
-                            // Columns: NodeName,DiskReadBytesPerSec,DiskTransfersPerSec,DiskWriteBytesPerSec
-                            const tps = Number(parts[2]);
-                            const readB = Number(parts[1]);
-                            const writeB = Number(parts[3].replace(/\r/g, ''));
-                            const totalBytes = readB + writeB;
-                            const mbs = (typeof totalBytes === 'number' && totalBytes > 0) ? (totalBytes / (1024 * 1024)).toFixed(3) : "N/A";
-                            const kbt = (typeof tps === 'number' && tps > 0 && typeof totalBytes === 'number') ? ((totalBytes / 1024) / tps).toFixed(3) : "N/A";
-                            diskStats = {
-                                kbt: isNaN(kbt) ? "N/A" : kbt,
-                                tps: isNaN(tps) ? "N/A" : tps.toFixed(3),
-                                mbs: isNaN(mbs) ? "N/A" : mbs
-                            };
-                        }
-                    }
-                    sendStats();
-                });
-            } else {
-                // Linux/macOS: Use iostat
-                exec('iostat -d 1 2', (err, stdout) => {
-                    if (!err && stdout) {
-                        // Find the last device line with numbers
-                        const lines = stdout.trim().split('\n');
-                        const deviceLine = lines.reverse().find(line => /\d/.test(line) && !line.includes('Device'));
-                        if (deviceLine) {
-                            const parts = deviceLine.trim().split(/\s+/);
-                            // Typical columns: Device tps kB_read/s kB_wrtn/s kB_read kB_wrtn
-                            // We'll use tps, kB_read/s, kB_wrtn/s
-                            const tps = Number(parts[1]);
-                            const kb_read_s = Number(parts[2]);
-                            const kb_wrtn_s = Number(parts[3]);
-                            const mbs = ((kb_read_s + kb_wrtn_s) / 1024).toFixed(3);
-                            const kbt = (tps > 0 ? ((kb_read_s + kb_wrtn_s) / tps).toFixed(3) : "N/A");
-                            diskStats = {
-                                kbt,
-                                tps: isNaN(tps) ? "N/A" : tps.toFixed(3),
-                                mbs: isNaN(mbs) ? "N/A" : mbs
-                            };
-                        }
-                    }
-                    sendStats();
-                });
-            }
-
-            // Send stats after diskStats is set
-            function sendStats() {
-                let load_average, m1, m5, m15;
-                const data = JSON.stringify({
-                    date: now.toLocaleTimeString(),
-                    disk: diskStats,
-                    cpu: {
-                        us: cpu.currentLoadUser,
-                        sy: cpu.currentLoadSystem,
-                        id: cpu.currentLoadIdle
-                    },
-                    load_average: (() => {
-                        if(os.platform() === 'win32'){
-                            m1 = avgCpu('m1'), m5 = avgCpu('m5'), m15 = avgCpu('m15');
-                        }else{ // Linux/macOS
-                            [m1, m5, m15] = os.loadavg();
-                        }
-                        return { m1, m5, m15 };
-                    })()
-                });
-                ws.send(data);
-            }
-        } catch (err) {
-            console.error('Error getting system info:', err);
-        }
-    }, 1000);
-
     ws.on('close', () => {
         console.log('Client disconnected');
     });
 });
+
+// Windows: wmic is deprecated (and missing on newer Windows 11), so read the disk performance counters
+// from one long-running PowerShell process instead of spawning a new process every second.
+function startWindowsDiskSampler() {
+    const script = `
+        while ($true) {
+            $d = Get-CimInstance Win32_PerfFormattedData_PerfDisk_PhysicalDisk -Filter "Name='_Total'"
+            try { [Console]::Out.WriteLine("$($d.DiskReadBytesPerSec),$($d.DiskWriteBytesPerSec),$($d.DiskTransfersPerSec)") } catch { exit }
+            Start-Sleep -Seconds 1
+        }`;
+    const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true });
+
+    let buffer = '';
+    ps.stdout.on('data', chunk => {
+        buffer += chunk;
+        const lines = buffer.split(/\r?\n/);
+        buffer = lines.pop();
+        lines.forEach(line => {
+            const [read, write, transfers] = line.split(',').map(Number);
+            if (![read, write, transfers].some(isNaN)) {
+                windowsDisk = { read, write, transfers, time: Date.now() };
+            }
+        });
+    });
+    ps.on('exit', code => {
+        console.error(`Windows disk sampler exited (code ${code}), disk stats will show N/A`);
+        windowsDisk = null;
+    });
+    process.on('exit', () => ps.kill());
+}
+
+// Build the disk block from bytes/sec and transfers/sec; null means "not available yet"
+function diskStats(readBytesSec, writeBytesSec, transfersSec) {
+    if (readBytesSec == null || writeBytesSec == null) {
+        return { kbt: null, tps: null, mbs: null, read_mbs: null, write_mbs: null };
+    }
+    const totalBytes = readBytesSec + writeBytesSec;
+    return {
+        kbt: transfersSec > 0 ? totalBytes / 1024 / transfersSec : null,
+        tps: transfersSec,
+        mbs: totalBytes / MB,
+        read_mbs: readBytesSec / MB,
+        write_mbs: writeBytesSec / MB
+    };
+}
+
+async function collectStats() {
+    // fsStats/disksIO read /proc and lsblk on Linux (no iostat needed); they return null on Windows
+    const [cpu, mem, net, fsIo, diskIo] = await Promise.all([
+        si.currentLoad(),
+        si.mem(),
+        si.networkStats(),
+        isWindows ? null : si.fsStats(),
+        isWindows ? null : si.disksIO()
+    ]);
+
+    const totalCpu = cpu.currentLoadUser + cpu.currentLoadSystem;
+    ['m1', 'm5', 'm15'].forEach(key => {
+        cpuHistory[key].unshift(totalCpu);
+        if (cpuHistory[key].length > maxSamples[key]) cpuHistory[key].pop();
+    });
+    const avgCpu = key => cpuHistory[key].reduce((a, b) => a + b, 0) / (cpuHistory[key].length || 1);
+
+    let disk;
+    if (isWindows) {
+        const fresh = windowsDisk && Date.now() - windowsDisk.time < 5000;
+        disk = fresh ? diskStats(windowsDisk.read, windowsDisk.write, windowsDisk.transfers) : diskStats(null, null, null);
+    } else {
+        // The *_sec values are null on the first call, until there are two readings to compare
+        disk = diskStats(fsIo && fsIo.rx_sec, fsIo && fsIo.wx_sec, diskIo && diskIo.tIO_sec);
+    }
+
+    const sum = (items, key) => items.some(item => item[key] != null) ? items.reduce((a, item) => a + (item[key] || 0), 0) : null;
+
+    let load_average;
+    if (isWindows) {
+        load_average = { m1: avgCpu('m1'), m5: avgCpu('m5'), m15: avgCpu('m15') };
+    } else { // Linux/macOS
+        const [m1, m5, m15] = os.loadavg();
+        load_average = { m1, m5, m15 };
+    }
+
+    return {
+        date: new Date().toLocaleTimeString(),
+        platform: os.platform(),
+        cores: os.cpus().length,
+        // How many seconds of CPU history the Windows averages are based on so far
+        history_seconds: cpuHistory.m15.length,
+        disk,
+        cpu: {
+            us: cpu.currentLoadUser,
+            sy: cpu.currentLoadSystem,
+            id: cpu.currentLoadIdle
+        },
+        load_average,
+        mem: {
+            used_pct: (mem.total - mem.available) / mem.total * 100,
+            used_gb: (mem.total - mem.available) / GB,
+            total_gb: mem.total / GB
+        },
+        net: {
+            rx_sec: sum(net, 'rx_sec'),
+            tx_sec: sum(net, 'tx_sec')
+        }
+    };
+}
+
+if (isWindows) {
+    startWindowsDiskSampler();
+}
+
+// One shared sampling loop for all clients, so each new connection doesn't start another timer
+let sampling = false;
+setInterval(async () => {
+    if (sampling) return; // previous sample still running
+    sampling = true;
+    try {
+        const message = JSON.stringify(await collectStats());
+        wss.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(message);
+            }
+        });
+    } catch (err) {
+        console.error('Error getting system info:', err);
+    } finally {
+        sampling = false;
+    }
+}, 1000);
 
 const PORT = process.env.PORT || 8000;
 server.listen(PORT, () => {
