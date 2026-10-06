@@ -1,5 +1,3 @@
-# WebSocket Live System Monitor
-
 This is a Node.js-based application that provides **live system usage statistics** (CPU, disk, load average) through a modern web interface. The server collects real-time system data and streams it to connected clients using WebSockets. The frontend displays the data in a responsive table and a live-updating line chart.
 
 ---
