@@ -1,3 +1,6 @@
+#!/usr/bin/env node
+// Copyright (c) 2025 Peter Jedra - MIT License
+// Packages/dependencies
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
